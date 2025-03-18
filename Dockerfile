@@ -1,4 +1,4 @@
-FROM ghcr.io/blinklabs-io/haskell:9.6.6-3.10.3.0-1 AS hydra-node-build
+FROM ghcr.io/blinklabs-io/haskell:9.6.6-3.12.1.0-1 AS hydra-node-build
 # Install hydra-node
 ARG NODE_VERSION=0.20.0
 ENV NODE_VERSION=${NODE_VERSION}
