@@ -16,13 +16,6 @@ RUN cd hydra \
     && mkdir -p /root/.local/bin/ \
     && cp -p dist-newstyle/build/$(uname -m)-linux/ghc-${GHC_VERSION}/hydra-node-${NODE_VERSION}/x/hydra-node/build/hydra-node/hydra-node /root/.local/bin/
 
-    # && git fetch --all --recurse-submodules --tags \
-
-    # && mkdir -p ~/.config/cabal \
-    # && echo 'binary-caches = ["https://cache.iog.io","https://cardano-scaling.cachix.org"]' >> ~/.config/cabal/config \
-    # && echo 'binary-cache-public-keys = ["hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=","cardano-scaling.cachix.org-1:QNK4nFrowZ/aIJMCBsE35m+O70fV6eewsBNdQnCSMKA="]' >> ~/.config/cabal/config \
-    # && cabal update \
-    # && cabal build hydra-node \
 FROM ghcr.io/blinklabs-io/cardano-cli:10.4.0.0-1 AS cardano-cli
 FROM ghcr.io/blinklabs-io/cardano-configs:20250213-1 AS cardano-configs
 
