@@ -27,6 +27,8 @@ RUN apt-get update -y && \
     apt-get install -y \
       bc \
       curl \
+      etcd-client \
+      etcd-server \
       iproute2 \
       jq \
       libffi8 \
