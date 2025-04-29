@@ -1,6 +1,6 @@
 FROM ghcr.io/blinklabs-io/haskell:9.6.6-3.12.1.0-1 AS hydra-node-build
 # Install hydra-node
-ARG NODE_VERSION=0.20.1
+ARG NODE_VERSION=0.21.0
 ENV NODE_VERSION=${NODE_VERSION}
 RUN echo "Building tags/${NODE_VERSION}..." \
     && echo tags/${NODE_VERSION} > /CARDANO_BRANCH \
@@ -11,6 +11,7 @@ RUN echo "Building tags/${NODE_VERSION}..." \
     && echo "with-compiler: ghc-${GHC_VERSION}" >> cabal.project.local \
     && echo "tests: False" >> cabal.project.local \
     && cabal update
+RUN apt-get update -y && apt-get install -y libsnappy-dev protobuf-compiler
 RUN cd hydra \
     && cabal build hydra-node \
     && mkdir -p /root/.local/bin/ \
@@ -34,6 +35,7 @@ RUN apt-get update -y && \
       libffi8 \
       libgmp10 \
       libnuma1 \
+      libsnappy1v5 \
       pkg-config \
       procps \
       socat \
