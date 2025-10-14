@@ -1,6 +1,6 @@
 FROM ghcr.io/blinklabs-io/haskell:9.6.6-3.12.1.0-2 AS hydra-node-build
 # Install hydra-node
-ARG NODE_VERSION=0.22.4
+ARG NODE_VERSION=1.0.0
 ENV NODE_VERSION=${NODE_VERSION}
 RUN echo "Building tags/${NODE_VERSION}..." \
     && echo tags/${NODE_VERSION} > /CARDANO_BRANCH \
