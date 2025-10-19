@@ -18,7 +18,7 @@ RUN cd hydra \
     && cp -p dist-newstyle/build/$(uname -m)-linux/ghc-${GHC_VERSION}/hydra-node-${NODE_VERSION}/x/hydra-node/build/hydra-node/hydra-node /root/.local/bin/
 
 FROM ghcr.io/blinklabs-io/cardano-cli:10.12.0.0-1 AS cardano-cli
-FROM ghcr.io/blinklabs-io/cardano-configs:20250917-1 AS cardano-configs
+FROM ghcr.io/blinklabs-io/cardano-configs:20251009-1 AS cardano-configs
 
 FROM debian:bookworm-slim AS hydra-node
 COPY --from=hydra-node-build /usr/local/lib/ /usr/local/lib/
