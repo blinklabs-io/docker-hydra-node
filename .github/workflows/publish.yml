@@ -13,8 +13,11 @@ env:
 
 jobs:
 
-  build-amd64:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
@@ -32,12 +35,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1 https://github.com/actions/cache/releases/tag/v5.0.1
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-buildx-
       - id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0 https://github.com/docker/metadata-action/releases/tag/v5.10.0
         with:
@@ -46,7 +43,7 @@ jobs:
             ${{ env.GHCR_IMAGE_NAME }}
           flavor: |
             latest=false
-            suffix=-amd64
+            suffix=-${{ matrix.arch == 'arm64' && 'arm64v8' || 'amd64' }}
           tags: |
             # Only version, no revision
             type=match,pattern=v(.*)-(.*),group=1
@@ -61,95 +58,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-      # TEMP fix
-      # https://github.com/docker/build-push-action/issues/252
-      # https://github.com/moby/buildkit/issues/1896
-      - name: cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-      # TEMP fix
-      # Something strange is happening with the manifests when we push which
-      # breaks the downstream multi-arch-manifest, so pull and push to work
-      # around this by resubmitting manifests
-      - name: pull-and-push
-        run: |
-          for t in `echo '${{ steps.meta.outputs.tags }}'`; do
-            docker pull $t && docker push $t
-          done
-
-  build-arm64:
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1 https://github.com/actions/checkout/releases/tag/v6.0.1
-      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1 https://github.com/docker/setup-buildx-action/releases/tag/v3.11.1
-      - name: Login to Docker Hub
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0 https://github.com/docker/login-action/releases/tag/v3.6.0
-        with:
-          username: blinklabs
-          password: ${{ secrets.DOCKER_PASSWORD }} # uses token
-      - name: Login to GHCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0 https://github.com/docker/login-action/releases/tag/v3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1 https://github.com/actions/cache/releases/tag/v5.0.1
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-buildx-
-      - id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0 https://github.com/docker/metadata-action/releases/tag/v5.10.0
-        with:
-          images: |
-            ${{ env.DOCKER_IMAGE_NAME }}
-            ${{ env.GHCR_IMAGE_NAME }}
-          flavor: |
-            latest=false
-            suffix=-arm64v8
-          tags: |
-            # Only version, no revision
-            type=match,pattern=v(.*)-(.*),group=1
-            # branch
-            type=ref,event=branch
-            # semver
-            type=semver,pattern={{version}}
-      - name: push
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0 https://github.com/docker/build-push-action/releases/tag/v6.18.0
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-      # TEMP fix
-      # https://github.com/docker/build-push-action/issues/252
-      # https://github.com/moby/buildkit/issues/1896
-      - name: cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-      # TEMP fix
-      # Something strange is happening with the manifests when we push which
-      # breaks the downstream multi-arch-manifest, so pull and push to work
-      # around this by resubmitting manifests
-      - name: pull-and-push
-        run: |
-          for t in `echo '${{ steps.meta.outputs.tags }}'`; do
-            docker pull $t && docker push $t
-          done
+          cache-from: type=gha,scope=buildkit-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=buildkit-${{ matrix.arch }}
 
   multi-arch-manifest:
     runs-on: ubuntu-latest
-    needs: [build-amd64, build-arm64]
+    needs: [build]
     permissions:
       contents: read
       packages: write
