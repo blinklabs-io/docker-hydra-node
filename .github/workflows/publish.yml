@@ -97,6 +97,7 @@ jobs:
             type=semver,pattern={{version}}
       - id: meta-dockerhub-tag
         name: Metadata - Docker Hub (Tags)
+        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
         with:
           images: |
@@ -122,6 +123,7 @@ jobs:
             type=semver,pattern={{version}}
       - id: meta-ghcr-tag
         name: Metadata - GHCR (Tags)
+        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
         with:
           images: |
@@ -138,27 +140,13 @@ jobs:
       - name: manifest-ghcr
         run: |
           for t in `echo '${{ steps.meta-ghcr.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
+            docker buildx imagetools create --tag "${t}" "${t}-amd64" "${t}-arm64v8"
           done
-      # Optional manifest for tag versions (includes revisions)
-      - name: manifest-ghcr-tags
+      # Optional latest manifest for release tags
+      - name: manifest-ghcr-latest
         run: |
           for t in `echo '${{ steps.meta-ghcr-tag.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
-            docker manifest create ${{ env.GHCR_IMAGE_NAME }}:latest --amend ${t}-amd64 --amend ${t}-arm64v8
-          done
-        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
-      # Push various manifests
-      - name: push-ghcr
-        run: |
-          for t in `echo '${{ steps.meta-ghcr.outputs.tags }}'`; do
-            docker manifest push ${t}
-          done
-      - name: push-ghcr-tags
-        run: |
-          docker manifest push ${{ env.GHCR_IMAGE_NAME }}:latest
-          for t in `echo '${{ steps.meta-ghcr-tag.outputs.tags }}'`; do
-            docker manifest push ${t}
+            docker buildx imagetools create --tag "${{ env.GHCR_IMAGE_NAME }}:latest" "${t}-amd64" "${t}-arm64v8"
           done
         if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
 
@@ -167,25 +155,12 @@ jobs:
       - name: manifest-dockerhub
         run: |
           for t in `echo '${{ steps.meta-dockerhub.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
+            docker buildx imagetools create --tag "${t}" "${t}-amd64" "${t}-arm64v8"
           done
-      - name: manifest-dockerhub-tags
+      - name: manifest-dockerhub-latest
         run: |
           for t in `echo '${{ steps.meta-dockerhub-tag.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
-            docker manifest create ${{ env.DOCKER_IMAGE_NAME }}:latest --amend ${t}-amd64 --amend ${t}-arm64v8
-          done
-        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
-      - name: push-dockerhub
-        run: |
-          for t in `echo '${{ steps.meta-dockerhub.outputs.tags }}'`; do
-            docker manifest push ${t}
-          done
-      - name: push-dockerhub-tags
-        run: |
-          docker manifest push ${{ env.DOCKER_IMAGE_NAME }}:latest
-          for t in `echo '${{ steps.meta-dockerhub-tag.outputs.tags }}'`; do
-            docker manifest push ${t}
+            docker buildx imagetools create --tag "${{ env.DOCKER_IMAGE_NAME }}:latest" "${t}-amd64" "${t}-arm64v8"
           done
         if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
 
