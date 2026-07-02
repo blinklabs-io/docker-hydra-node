@@ -67,6 +67,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0 https://github.com/actions/checkout/releases/tag/v7.0.0
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 https://github.com/docker/setup-buildx-action/releases/tag/v4.1.0
@@ -97,6 +99,7 @@ jobs:
             type=semver,pattern={{version}}
       - id: meta-dockerhub-tag
         name: Metadata - Docker Hub (Tags)
+        if: env.IS_RELEASE_TAG == 'true'
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
         with:
           images: |
@@ -122,6 +125,7 @@ jobs:
             type=semver,pattern={{version}}
       - id: meta-ghcr-tag
         name: Metadata - GHCR (Tags)
+        if: env.IS_RELEASE_TAG == 'true'
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
         with:
           images: |
@@ -131,63 +135,62 @@ jobs:
           tags: |
             # Only version, no revision
             type=match,pattern=v(.*)-(.*),group=1
+      - name: Find latest release tag
+        if: env.IS_RELEASE_TAG == 'true'
+        run: |
+          git fetch --tags --force
+          latest_release_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v -- '-pre-' | head -n 1)"
+          echo "LATEST_RELEASE_TAG=${latest_release_tag}" >> "$GITHUB_ENV"
 
       # First, create manifests and push to GHCR
 
       # Manifest for either branch or semver
       - name: manifest-ghcr
+        env:
+          TAGS: ${{ steps.meta-ghcr.outputs.tags }}
         run: |
-          for t in `echo '${{ steps.meta-ghcr.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
-          done
-      # Optional manifest for tag versions (includes revisions)
-      - name: manifest-ghcr-tags
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            docker buildx imagetools create --tag "${t}" "${t}-amd64" "${t}-arm64v8"
+          done <<< "$TAGS"
+      # Optional latest manifest for release tags
+      - name: manifest-ghcr-latest
+        if: env.IS_RELEASE_TAG == 'true'
+        env:
+          TAGS: ${{ steps.meta-ghcr-tag.outputs.tags }}
         run: |
-          for t in `echo '${{ steps.meta-ghcr-tag.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
-            docker manifest create ${{ env.GHCR_IMAGE_NAME }}:latest --amend ${t}-amd64 --amend ${t}-arm64v8
-          done
-        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
-      # Push various manifests
-      - name: push-ghcr
-        run: |
-          for t in `echo '${{ steps.meta-ghcr.outputs.tags }}'`; do
-            docker manifest push ${t}
-          done
-      - name: push-ghcr-tags
-        run: |
-          docker manifest push ${{ env.GHCR_IMAGE_NAME }}:latest
-          for t in `echo '${{ steps.meta-ghcr-tag.outputs.tags }}'`; do
-            docker manifest push ${t}
-          done
-        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
+          if [ "$GITHUB_REF_NAME" != "$LATEST_RELEASE_TAG" ]; then
+            echo "Skipping latest manifest for $GITHUB_REF_NAME; latest release tag is $LATEST_RELEASE_TAG"
+            exit 0
+          fi
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            docker buildx imagetools create --tag "$GHCR_IMAGE_NAME:latest" "${t}-amd64" "${t}-arm64v8"
+          done <<< "$TAGS"
 
       # Now, create manifests for Docker Hub
 
       - name: manifest-dockerhub
+        env:
+          TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
         run: |
-          for t in `echo '${{ steps.meta-dockerhub.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
-          done
-      - name: manifest-dockerhub-tags
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            docker buildx imagetools create --tag "${t}" "${t}-amd64" "${t}-arm64v8"
+          done <<< "$TAGS"
+      - name: manifest-dockerhub-latest
+        if: env.IS_RELEASE_TAG == 'true'
+        env:
+          TAGS: ${{ steps.meta-dockerhub-tag.outputs.tags }}
         run: |
-          for t in `echo '${{ steps.meta-dockerhub-tag.outputs.tags }}'`; do
-            docker manifest create ${t} --amend ${t}-amd64 --amend ${t}-arm64v8
-            docker manifest create ${{ env.DOCKER_IMAGE_NAME }}:latest --amend ${t}-amd64 --amend ${t}-arm64v8
-          done
-        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
-      - name: push-dockerhub
-        run: |
-          for t in `echo '${{ steps.meta-dockerhub.outputs.tags }}'`; do
-            docker manifest push ${t}
-          done
-      - name: push-dockerhub-tags
-        run: |
-          docker manifest push ${{ env.DOCKER_IMAGE_NAME }}:latest
-          for t in `echo '${{ steps.meta-dockerhub-tag.outputs.tags }}'`; do
-            docker manifest push ${t}
-          done
-        if: startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-')
+          if [ "$GITHUB_REF_NAME" != "$LATEST_RELEASE_TAG" ]; then
+            echo "Skipping latest manifest for $GITHUB_REF_NAME; latest release tag is $LATEST_RELEASE_TAG"
+            exit 0
+          fi
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            docker buildx imagetools create --tag "$DOCKER_IMAGE_NAME:latest" "${t}-amd64" "${t}-arm64v8"
+          done <<< "$TAGS"
 
       # Update Docker Hub from README
 
