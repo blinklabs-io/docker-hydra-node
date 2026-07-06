@@ -1,230 +1,24 @@
-name: publish
+# Generated automatically by org-governance-bot. Do not edit manually.
+name: "publish"
 
 on:
   push:
-    branches: ['main']
-    tags: ['v*.*.*']
+    branches:
+      - main
+    tags:
+      - v*.*.*
 
-concurrency: ${{ github.ref }}
-
-env:
-  DOCKER_IMAGE_NAME: blinklabs/hydra-node
-  GHCR_IMAGE_NAME: ghcr.io/blinklabs-io/hydra-node
+permissions:
+  contents: write
+  packages: write
 
 jobs:
-
-  build:
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0 https://github.com/actions/checkout/releases/tag/v7.0.0
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 https://github.com/docker/setup-buildx-action/releases/tag/v4.1.0
-      - name: Login to Docker Hub
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0 https://github.com/docker/login-action/releases/tag/v4.2.0
-        with:
-          username: blinklabs
-          password: ${{ secrets.DOCKER_PASSWORD }} # uses token
-      - name: Login to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0 https://github.com/docker/login-action/releases/tag/v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
-        with:
-          images: |
-            ${{ env.DOCKER_IMAGE_NAME }}
-            ${{ env.GHCR_IMAGE_NAME }}
-          flavor: |
-            latest=false
-            suffix=-${{ matrix.arch == 'arm64' && 'arm64v8' || 'amd64' }}
-          tags: |
-            # Only version, no revision
-            type=match,pattern=v(.*)-(.*),group=1
-            # branch
-            type=ref,event=branch
-            # semver
-            type=semver,pattern={{version}}
-      - name: push
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0 https://github.com/docker/build-push-action/releases/tag/v7.2.0
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=buildkit-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=buildkit-${{ matrix.arch }}
-
-  multi-arch-manifest:
-    runs-on: ubuntu-latest
-    needs: [build]
-    permissions:
-      contents: read
-      packages: write
-    env:
-      IS_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && ! contains(github.ref, '-pre-') }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0 https://github.com/actions/checkout/releases/tag/v7.0.0
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 https://github.com/docker/setup-buildx-action/releases/tag/v4.1.0
-      - name: Login to Docker Hub
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0 https://github.com/docker/login-action/releases/tag/v4.2.0
-        with:
-          username: blinklabs
-          password: ${{ secrets.DOCKER_PASSWORD }} # uses token
-      - name: Login to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0 https://github.com/docker/login-action/releases/tag/v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta-dockerhub
-        name: Metadata - Docker Hub
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
-        with:
-          images: ${{ env.DOCKER_IMAGE_NAME }}
-          flavor: |
-            latest=false
-          tags: |
-            # Only version, no revision
-            type=match,pattern=v(.*)-(.*),group=1
-            # branch
-            type=ref,event=branch
-            # semver
-            type=semver,pattern={{version}}
-      - id: meta-dockerhub-tag
-        name: Metadata - Docker Hub (Tags)
-        if: env.IS_RELEASE_TAG == 'true'
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
-        with:
-          images: |
-            ${{ env.DOCKER_IMAGE_NAME }}
-          flavor: |
-            latest=false
-          tags: |
-            # Only version, no revision
-            type=match,pattern=v(.*)-(.*),group=1
-      - id: meta-ghcr
-        name: Metadata - GHCR
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
-        with:
-          images: ${{ env.GHCR_IMAGE_NAME }}
-          flavor: |
-            latest=false
-          tags: |
-            # Only version, no revision
-            type=match,pattern=v(.*)-(.*),group=1
-            # branch
-            type=ref,event=branch
-            # semver
-            type=semver,pattern={{version}}
-      - id: meta-ghcr-tag
-        name: Metadata - GHCR (Tags)
-        if: env.IS_RELEASE_TAG == 'true'
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0 https://github.com/docker/metadata-action/releases/tag/v6.1.0
-        with:
-          images: |
-            ${{ env.GHCR_IMAGE_NAME }}
-          flavor: |
-            latest=false
-          tags: |
-            # Only version, no revision
-            type=match,pattern=v(.*)-(.*),group=1
-      - name: Find latest release tag
-        if: env.IS_RELEASE_TAG == 'true'
-        run: |
-          git fetch --tags --force
-          latest_release_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v -- '-pre-' | head -n 1)"
-          echo "LATEST_RELEASE_TAG=${latest_release_tag}" >> "$GITHUB_ENV"
-
-      # First, create manifests and push to GHCR
-
-      # Manifest for either branch or semver
-      - name: manifest-ghcr
-        env:
-          TAGS: ${{ steps.meta-ghcr.outputs.tags }}
-        run: |
-          while IFS= read -r t; do
-            [ -n "$t" ] || continue
-            docker buildx imagetools create --tag "${t}" "${t}-amd64" "${t}-arm64v8"
-          done <<< "$TAGS"
-      # Optional latest manifest for release tags
-      - name: manifest-ghcr-latest
-        if: env.IS_RELEASE_TAG == 'true'
-        env:
-          TAGS: ${{ steps.meta-ghcr-tag.outputs.tags }}
-        run: |
-          if [ "$GITHUB_REF_NAME" != "$LATEST_RELEASE_TAG" ]; then
-            echo "Skipping latest manifest for $GITHUB_REF_NAME; latest release tag is $LATEST_RELEASE_TAG"
-            exit 0
-          fi
-          while IFS= read -r t; do
-            [ -n "$t" ] || continue
-            docker buildx imagetools create --tag "$GHCR_IMAGE_NAME:latest" "${t}-amd64" "${t}-arm64v8"
-          done <<< "$TAGS"
-
-      # Now, create manifests for Docker Hub
-
-      - name: manifest-dockerhub
-        env:
-          TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
-        run: |
-          while IFS= read -r t; do
-            [ -n "$t" ] || continue
-            docker buildx imagetools create --tag "${t}" "${t}-amd64" "${t}-arm64v8"
-          done <<< "$TAGS"
-      - name: manifest-dockerhub-latest
-        if: env.IS_RELEASE_TAG == 'true'
-        env:
-          TAGS: ${{ steps.meta-dockerhub-tag.outputs.tags }}
-        run: |
-          if [ "$GITHUB_REF_NAME" != "$LATEST_RELEASE_TAG" ]; then
-            echo "Skipping latest manifest for $GITHUB_REF_NAME; latest release tag is $LATEST_RELEASE_TAG"
-            exit 0
-          fi
-          while IFS= read -r t; do
-            [ -n "$t" ] || continue
-            docker buildx imagetools create --tag "$DOCKER_IMAGE_NAME:latest" "${t}-amd64" "${t}-arm64v8"
-          done <<< "$TAGS"
-
-      # Update Docker Hub from README
-
-      - name: Docker Hub Description
-        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0 https://github.com/peter-evans/dockerhub-description/releases/tag/v5.0.0
-        with:
-          username: blinklabs
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: ${{ env.DOCKER_IMAGE_NAME }}
-          readme-filepath: ./README.md
-          short-description: "Hydra Node built from source on Debian"
-
-  github-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    needs: [multi-arch-manifest]
-    steps:
-      - run: "echo \"RELEASE_TAG=${GITHUB_REF#refs/tags/}\" >> $GITHUB_ENV"
-      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 https://github.com/actions/github-script/releases/tag/v9.0.0
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            try {
-              await github.rest.repos.createRelease({
-                draft: false,
-                generate_release_notes: true,
-                name: process.env.RELEASE_TAG,
-                owner: context.repo.owner,
-                prerelease: ${{ (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-pre-')) && true || false }},
-                repo: context.repo.repo,
-                tag_name: process.env.RELEASE_TAG,
-              });
-            } catch (error) {
-              core.setFailed(error.message);
-            }
+  orchestrate:
+    uses: blinklabs-io/actions/.github/workflows/reuseable-publish-docker-multiarch.yml@main
+    secrets:
+      docker-password: ${{ secrets.DOCKER_PASSWORD }}
+    with:
+      description: Hydra Node built from source on Debian
+      docker-image: blinklabs/hydra-node
+      ghcr-image: blinklabs-io/hydra-node
+      prerelease-pattern: -pre-
