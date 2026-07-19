@@ -13,7 +13,7 @@ RUN git clone https://github.com/cardano-scaling/rust-accumulator.git \
     && cp -p ../include/rust_accumulator.h /opt/rust-accumulator/include/ \
     && printf "prefix=/usr/local\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: librust_accumulator\nDescription: Rust Accumulator Library\nVersion: 0.1.0\nLibs: -L\${libdir} -lrust_accumulator\nCflags: -I\${includedir}\n" > /opt/rust-accumulator/lib/pkgconfig/librust_accumulator.pc
 
-FROM ghcr.io/blinklabs-io/haskell:9.6.7-3.12.1.0-3 AS hydra-node-build
+FROM ghcr.io/blinklabs-io/haskell:9.12.3-3.14.2.0-1 AS hydra-node-build
 # Install hydra-node
 ARG NODE_VERSION=2.2.0
 ENV NODE_VERSION=${NODE_VERSION}
