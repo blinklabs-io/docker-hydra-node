@@ -29,7 +29,11 @@ RUN echo "Building tags/${NODE_VERSION}..." \
 RUN apt-get update -y && apt-get install -y etcd-server libsnappy-dev protobuf-compiler
 COPY --from=rust-accumulator-build /opt/rust-accumulator/ /usr/local/
 RUN cd hydra \
-    && cabal build hydra-node \
+    && if [ "$(uname -m)" = "aarch64" ]; then \
+        cabal build hydra-node --ghc-options="-optl-Wl,--stub-group-size=0x3FFDFFE"; \
+    else \
+        cabal build hydra-node; \
+    fi \
     && mkdir -p /root/.local/bin/ \
     && cp -p dist-newstyle/build/$(uname -m)-linux/ghc-${GHC_VERSION}/hydra-node-${NODE_VERSION}/x/hydra-node/build/hydra-node/hydra-node /root/.local/bin/
 
