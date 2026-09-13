@@ -30,13 +30,18 @@ RUN echo "Building tags/${NODE_VERSION}..." \
 RUN apt-get update -y && apt-get install -y etcd-server libsnappy-dev protobuf-compiler
 COPY --from=rust-accumulator-build /opt/rust-accumulator/ /usr/local/
 RUN cd hydra \
+    && case "${TARGETARCH}" in \
+        amd64) cabal_arch="x86_64" ;; \
+        arm64) cabal_arch="aarch64" ;; \
+        *) cabal_arch="$(uname -m)" ;; \
+    esac \
     && if [ "${TARGETARCH}" = "arm64" ]; then \
         cabal build hydra-node --ghc-options="-optl-Wl,--stub-group-size=0x3FFDFFE"; \
     else \
         cabal build hydra-node; \
     fi \
     && mkdir -p /root/.local/bin/ \
-    && cp -p dist-newstyle/build/$(uname -m)-linux/ghc-${GHC_VERSION}/hydra-node-${NODE_VERSION}/x/hydra-node/build/hydra-node/hydra-node /root/.local/bin/
+    && cp -p dist-newstyle/build/${cabal_arch}-linux/ghc-${GHC_VERSION}/hydra-node-${NODE_VERSION}/x/hydra-node/build/hydra-node/hydra-node /root/.local/bin/
 
 FROM ghcr.io/blinklabs-io/cardano-cli:11.2.3.1-1 AS cardano-cli
 FROM ghcr.io/blinklabs-io/cardano-configs:20260829-1 AS cardano-configs
