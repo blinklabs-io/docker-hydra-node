@@ -16,6 +16,7 @@ RUN git clone https://github.com/cardano-scaling/rust-accumulator.git \
 FROM ghcr.io/blinklabs-io/haskell:9.6.7-3.12.1.0-3 AS hydra-node-build
 # Install hydra-node
 ARG NODE_VERSION=2.4.1
+ARG TARGETARCH
 ENV NODE_VERSION=${NODE_VERSION}
 RUN echo "Building tags/${NODE_VERSION}..." \
     && echo tags/${NODE_VERSION} > /CARDANO_BRANCH \
@@ -29,7 +30,7 @@ RUN echo "Building tags/${NODE_VERSION}..." \
 RUN apt-get update -y && apt-get install -y etcd-server libsnappy-dev protobuf-compiler
 COPY --from=rust-accumulator-build /opt/rust-accumulator/ /usr/local/
 RUN cd hydra \
-    && if [ "$(uname -m)" = "aarch64" ]; then \
+    && if [ "${TARGETARCH}" = "arm64" ]; then \
         cabal build hydra-node --ghc-options="-optl-Wl,--stub-group-size=0x3FFDFFE"; \
     else \
         cabal build hydra-node; \
