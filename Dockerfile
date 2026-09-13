@@ -15,7 +15,7 @@ RUN git clone https://github.com/cardano-scaling/rust-accumulator.git \
 
 FROM ghcr.io/blinklabs-io/haskell:9.6.7-3.12.1.0-3 AS hydra-node-build
 # Install hydra-node
-ARG NODE_VERSION=2.2.0
+ARG NODE_VERSION=2.4.1
 ENV NODE_VERSION=${NODE_VERSION}
 RUN echo "Building tags/${NODE_VERSION}..." \
     && echo tags/${NODE_VERSION} > /CARDANO_BRANCH \
